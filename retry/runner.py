@@ -24,7 +24,7 @@ class JobQueue(BaseModel):
     commands: list[str]
     succeeded_jobs: list[int]
     queued_jobs: list[int]
-    num_failures: list[int]
+    num_attempts: list[int]
 
     @staticmethod
     def read_from_commands_file(file: Path) -> JobQueue:
@@ -41,7 +41,7 @@ class JobQueue(BaseModel):
             commands=commands,
             succeeded_jobs=[],
             queued_jobs=list(range(len(commands))),
-            num_failures=len(commands) * [0],
+            num_attempts=len(commands) * [0],
         )
 
     def write_to_json_file(self, file: Path) -> None:
@@ -84,7 +84,7 @@ class JobQueue(BaseModel):
             raise ValueError("JobQueue is empty")
         job_index: int = random.choice(self.queued_jobs)
         self.queued_jobs.remove(job_index)
-        return job_index, self.num_failures[job_index], self.commands[job_index]
+        return job_index, self.num_attempts[job_index], self.commands[job_index]
 
     def mark_job_as_succeeded(self, job_index: int) -> None:
         """Marks a job as succeeded.
@@ -103,7 +103,7 @@ class JobQueue(BaseModel):
             job_index: The index of the job. A number between 0 and N-1 where N
                 is the number of jobs.
         """
-        self.num_failures[job_index] += 1
+        self.num_attempts[job_index] += 1
         self.queued_jobs.append(job_index)
 
     def is_empty(self) -> bool:
@@ -115,7 +115,7 @@ class JobResult(BaseModel):
     """Result of running a shell command."""
 
     job_index: int
-    num_failures: int
+    num_attempts: int
     command: str
     exit_code: int
     elapsed_seconds: float
@@ -125,7 +125,7 @@ class JobResult(BaseModel):
     def serialize(self, base_directory: Path) -> None:
         """Serializes the object to text files."""
         json_data = self.model_dump_json()
-        directory = base_directory / f"job_{self.job_index:05d}_{self.num_failures:05d}"
+        directory = base_directory / f"job_{self.job_index:05d}_{self.num_attempts:05d}"
         directory.mkdir(parents=True, exist_ok=True)
         stdout_file = Path(directory) / "stdout.txt"
         stderr_file = Path(directory) / "stderr.txt"
@@ -142,12 +142,12 @@ class JobResult(BaseModel):
             print(f"Job {self.job_index} failed after {self.elapsed_seconds:.2f} seconds.")
 
 
-def run_job(job_index: int, num_failures: int, command: str) -> JobResult:
+def run_job(job_index: int, num_attempts: int, command: str) -> JobResult:
     """Runs a shell command and captures its output.
 
     Args:
         job_index: The index of the job to run.
-        num_failures: The number of failures to run.
+        num_attempts: The number of failures to run.
         command: The shell command to run.
 
     Returns:
@@ -164,7 +164,7 @@ def run_job(job_index: int, num_failures: int, command: str) -> JobResult:
     elapsed = time.perf_counter() - start
     return JobResult(
         job_index=job_index,
-        num_failures=num_failures,
+        num_attempts=num_attempts,
         command=command,
         exit_code=result.returncode,
         elapsed_seconds=elapsed,
@@ -188,9 +188,9 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
         while not job_queue.is_empty():
             # Add jobs to thread pool.
             while len(pending) < max_workers and not job_queue.is_empty():
-                job_index, num_failures, command = job_queue.get_random_job()
-                print(f"Starting job {job_index}. Prior number of failures: {num_failures}")
-                future = executor.submit(run_job, job_index, num_failures, command)
+                job_index, num_attempts, command = job_queue.get_random_job()
+                print(f"Starting job {job_index}, attempt {num_attempts}.")
+                future = executor.submit(run_job, job_index, num_attempts, command)
                 pending.add(future)
 
             job_queue.write_to_json_file(base_directory / "queue_state.json")
@@ -198,6 +198,7 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
             # Get finished futures.
             done, _ = wait(pending, return_when=FIRST_COMPLETED)
             for future in done:
+                pending.remove(future)
                 result = future.result()
                 result.print()
                 result.serialize(base_directory)
@@ -216,6 +217,7 @@ def parse_arguments() -> argparse.Namespace:
         "--max_workers",
         type=int,
         default=5,
+        required=True,
         help="Maximum number of parallel workers.",
     )
     parser.add_argument(
@@ -224,7 +226,12 @@ def parse_arguments() -> argparse.Namespace:
         required=True,
         help="Base directory where to write files.",
     )
-    parser.add_argument("--commands", type=Path, required=True, help="File with commands to run.")
+    parser.add_argument(
+        "--commands",
+        type=Path,
+        required=True,
+        help="File with commands to run.",
+    )
     parser.add_argument(
         "--resume",
         type=bool,
