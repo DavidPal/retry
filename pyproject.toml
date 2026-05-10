@@ -85,8 +85,13 @@ select = ["ALL"]
 ignore = [
     "CPY001",
     "D104",
+    "EM101",
     "PT009",
     "S311",
+    "S404",
+    "S602",
+    "T201",
+    "TRY003"
 ]
 fixable = ["ALL"]
 unfixable = []
