@@ -1,0 +1,119 @@
+[project]
+name = "retry"
+version = "0.0.1"
+description = ""
+authors = [{ name = "David Pal", email = "davidko.pal@gmail.com" }]
+readme = "README.md"
+license = "MIT"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">=3.9.0"
+dependencies = [
+    "pydantic>=2.13.4",
+]
+
+[project.urls]
+Repository = "https://github.com/DavidPal/whitespace-format"
+Homepage = "https://github.com/DavidPal/whitespace-format"
+
+[dependency-groups]
+dev = [
+    "coverage~=7.10.7; python_version < '3.12'",
+    "coverage>=7.13.5; python_version >= '3.12'",
+
+    "mypy~=1.19.1",
+
+    "pylint~=3.3.9; python_version < '3.12'",
+    "pylint~=4.0.5; python_version >= '3.12'",
+
+    "pytest~=8.4.2; python_version < '3.12'",
+    "pytest>=9.0.3; python_version >= '3.12'",
+
+    "ruff>=0.15.12",
+
+    "whitespace-format>=0.0.16",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+ignore-vcs = true
+
+[tool.uv]
+package = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple/"
+publish-url = "https://upload.pypi.org/legacy/"
+explicit = true
+
+[[tool.uv.index]]
+name = "test-pypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.black]
+line-length = 100
+skip-string-normalization = true
+
+[tool.isort]
+profile = "black"
+force_single_line = true
+line_length = 100
+multi_line_output = 3
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.format]
+line-ending = "lf"
+indent-style = "space"
+quote-style = "double"
+
+[tool.ruff.lint]
+preview = true
+explicit-preview-rules = false
+select = ["ALL"]
+ignore = [
+    "CPY001",
+    "D104",
+    "PT009",
+    "S311",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+force-single-line = true
+force-sort-within-sections = false
+from-first = false
+order-by-type = true
+
+[tool.ruff.lint.pylint]
+max-returns = 30
+max-locals = 20
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pydoclint]
+# Skip docstrings which fit on a single line.
+ignore-one-line-docstrings = true
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+strict_optional = true
+no_implicit_optional = true
+check_untyped_defs = true
