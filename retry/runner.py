@@ -56,7 +56,11 @@ class JobQueue(BaseModel):
         Returns:
             A new instance of JobQueue class.
         """
-        commands = [line.strip() for line in file.read_text(encoding="utf-8").strip().splitlines()]
+        commands = [
+            line.strip()
+            for line in file.read_text(encoding="utf-8").strip().splitlines()
+            if line.strip()
+        ]
         return JobQueue.create_from_commands(commands)
 
     def write_to_json_file(self, file: Path) -> None:
@@ -131,6 +135,16 @@ class JobQueue(BaseModel):
         """Checks if the queue is empty."""
         return not self.queued_jobs
 
+    def print_stats(self) -> None:
+        """Prints the stats of the job queue."""
+        num_failures = sum(self.num_attempts) - len(self.succeeded_jobs)
+        print(
+            f"{len(self.running_jobs)} running job(s). "
+            f"{len(self.queued_jobs)} queued job(s). "
+            f"{len(self.succeeded_jobs)} succeeded job(s). "
+            f"{num_failures} failed job(s).",
+        )
+
 
 class JobResult(BaseModel):
     """Result of running a shell command."""
@@ -145,7 +159,7 @@ class JobResult(BaseModel):
 
     def serialize(self, base_directory: Path) -> None:
         """Serializes the object to text files."""
-        json_data = self.model_dump_json()
+        json_data = self.model_dump_json(indent=4)
         directory = base_directory / f"job_{self.job_index:05d}_{self.num_attempts:05d}"
         directory.mkdir(parents=True, exist_ok=True)
         stdout_file = Path(directory) / "stdout.txt"
@@ -204,17 +218,19 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
         max_workers: Maximum number of parallel workers.
         base_directory: The base directory where to write files.
     """
+    base_directory.mkdir(parents=True, exist_ok=True)
     pending: set[Future[JobResult]] = set()
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        while not job_queue.is_empty():
+        while not job_queue.is_empty() or pending:
             # Add jobs to thread pool.
             while len(pending) < max_workers and not job_queue.is_empty():
                 job_index, num_attempts, command = job_queue.get_random_job()
-                print(f"Starting job {job_index}, attempt {num_attempts}.")
+                print(f"Starting job {job_index}, attempt {num_attempts}, command: {command}")
                 future = executor.submit(run_job, job_index, num_attempts, command)
                 pending.add(future)
 
-            job_queue.write_to_json_file(base_directory / "queue_state.json")
+            job_queue.write_to_json_file(base_directory / "queue.json")
+            job_queue.print_stats()
 
             # Get finished futures.
             done, _ = wait(pending, return_when=FIRST_COMPLETED)
@@ -224,25 +240,29 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
                 result.print()
                 result.serialize(base_directory)
                 if result.exit_code == 0:
-                    job_queue.mark_job_as_succeeded(job_index)
+                    job_queue.mark_job_as_succeeded(result.job_index)
                 else:
-                    job_queue.mark_job_as_failed(job_index)
+                    job_queue.mark_job_as_failed(result.job_index)
 
-            job_queue.write_to_json_file(base_directory / "queue_state.json")
+            job_queue.write_to_json_file(base_directory / "queue.json")
+            job_queue.print_stats()
 
 
 def parse_arguments() -> argparse.Namespace:
     """Parses command line arguments."""
-    parser = argparse.ArgumentParser(description="Run shell commands on a thread pool.")
+    parser = argparse.ArgumentParser(
+        description="Run shell commands on a thread pool.",
+        allow_abbrev=False,
+    )
     parser.add_argument(
-        "--max_workers",
+        "--max-workers",
         type=int,
         default=5,
         required=True,
         help="Maximum number of parallel workers.",
     )
     parser.add_argument(
-        "--base_directory",
+        "--base-directory",
         type=Path,
         required=True,
         help="Base directory where to write files.",
@@ -255,7 +275,6 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--resume",
-        type=bool,
         action="store_true",
         default=False,
         help="File with jobs to run.",
@@ -267,7 +286,7 @@ def main() -> None:
     """Entry point of the script."""
     parsed_args = parse_arguments()
     if parsed_args.resume:
-        job_queue = JobQueue.read_from_json_file(parsed_args.base_directory / "queue_state.json")
+        job_queue = JobQueue.read_from_json_file(parsed_args.base_directory / "queue.json")
     else:
         job_queue = JobQueue.read_from_commands_file(parsed_args.commands)
     run_jobs(

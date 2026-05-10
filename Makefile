@@ -101,7 +101,7 @@ install-python:
 
 create-environment:
 	# Create virtual environment.
-	uv venv --clear --managed-python
+	uv venv --clear --managed-python --seed
 
 delete-environment:
 	# Delete virtual environment.
