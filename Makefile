@@ -90,7 +90,7 @@ coverage:
 
 clean:
 	# Remove temporary files.
-	rm -rf logs/*.log pytest_results/ .coverage *.egg-info/ dist/ .mypy_cache/ .pytest_cache/ .ruff_cache/
+	rm -rf logs/*.log pytest_results/ .coverage *.egg-info/ dist/ .mypy_cache/ .pytest_cache/ .ruff_cache/  coverage.xml
 	find . -name "__pycache__" -prune -exec rm -rf {} \;
 	find . -name ".pytest_cache" -prune -exec rm -rf {} \;
 	find . -name ".mypy_cache" -prune -exec rm -rf {} \;
