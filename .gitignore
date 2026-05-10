@@ -1,0 +1,32 @@
+# Python temporary file
+*.pyc
+__pycache__/
+.cache/
+
+# Virtual environments
+.venv/
+
+# Python package
+dist/
+*.egg-info/
+
+# PyCharm files
+.idea/
+
+# VSCode files
+.vscode/
+
+# Vim temporary files
+*.swp
+*.swo
+
+# Mypy files
+.mypy_cache/
+
+# Pytest files
+.pytest_cache/
+
+# Coverage files
+.coverage
+coverage.xml
+pytest_results/

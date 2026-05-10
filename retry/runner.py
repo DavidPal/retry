@@ -24,7 +24,27 @@ class JobQueue(BaseModel):
     commands: list[str]
     succeeded_jobs: list[int]
     queued_jobs: list[int]
+    running_jobs: list[int]
     num_attempts: list[int]
+
+    @staticmethod
+    def create_from_commands(commands: list[str]) -> JobQueue:
+        """Creates JobQueue object from a list of commands.
+
+        Args:
+            commands: A list of commands to execute.
+
+        Returns:
+            A new instance of JobQueue class.
+        """
+        n = len(commands)
+        return JobQueue(
+            commands=commands,
+            succeeded_jobs=[],
+            queued_jobs=list(range(n)),
+            running_jobs=[],
+            num_attempts=[0] * n,
+        )
 
     @staticmethod
     def read_from_commands_file(file: Path) -> JobQueue:
@@ -37,12 +57,7 @@ class JobQueue(BaseModel):
             A new instance of JobQueue class.
         """
         commands = [line.strip() for line in file.read_text(encoding="utf-8").strip().splitlines()]
-        return JobQueue(
-            commands=commands,
-            succeeded_jobs=[],
-            queued_jobs=list(range(len(commands))),
-            num_attempts=len(commands) * [0],
-        )
+        return JobQueue.create_from_commands(commands)
 
     def write_to_json_file(self, file: Path) -> None:
         """Serializes the object to a JSON file.
@@ -65,9 +80,12 @@ class JobQueue(BaseModel):
         """
         json_data = file.read_text(encoding="utf-8")
         job_queue = JobQueue.model_validate_json(json_data)
-        job_queue.queued_jobs = list(range(len(job_queue.commands)))
-        for job_index in job_queue.succeeded_jobs:
-            job_queue.queued_jobs.remove(job_index)
+
+        # Move running jobs back into the queue.
+        for job_index in job_queue.running_jobs:
+            job_queue.queued_jobs.append(job_index)
+        job_queue.running_jobs = []
+
         return job_queue
 
     def get_random_job(self) -> tuple[int, int, str]:
@@ -83,6 +101,7 @@ class JobQueue(BaseModel):
         if not self.queued_jobs:
             raise ValueError("JobQueue is empty")
         job_index: int = random.choice(self.queued_jobs)
+        self.running_jobs.append(job_index)
         self.queued_jobs.remove(job_index)
         return job_index, self.num_attempts[job_index], self.commands[job_index]
 
@@ -93,8 +112,9 @@ class JobQueue(BaseModel):
             job_index: The index of the job. A number between 0 and N-1 where N
                 is the number of jobs.
         """
+        self.num_attempts[job_index] += 1
+        self.running_jobs.remove(job_index)
         self.succeeded_jobs.append(job_index)
-        self.queued_jobs.remove(job_index)
 
     def mark_job_as_failed(self, job_index: int) -> None:
         """Marks a job as failed.
@@ -104,6 +124,7 @@ class JobQueue(BaseModel):
                 is the number of jobs.
         """
         self.num_attempts[job_index] += 1
+        self.running_jobs.remove(job_index)
         self.queued_jobs.append(job_index)
 
     def is_empty(self) -> bool:
