@@ -88,8 +88,13 @@ class TestPrint(unittest.TestCase):
         return buf.getvalue()
 
     def test_prints_succeeded_on_exit_code_zero(self) -> None:
-        """Prints 'succeeded' when exit_code is 0."""
-        result = _make_result(job_index=3, exit_code=0, elapsed_seconds=2.0)
+        """Prints 'succeeded' when exit_code is 0 and stdout contains 'State: success'."""
+        result = _make_result(
+            job_index=3,
+            exit_code=0,
+            elapsed_seconds=2.0,
+            stdout="State: success\n",
+        )
         output = self._capture_print(result)
         self.assertIn("succeeded", output)
         self.assertIn("3", output)
@@ -103,7 +108,7 @@ class TestPrint(unittest.TestCase):
 
     def test_elapsed_seconds_formatted_to_two_decimal_places(self) -> None:
         """Elapsed time is printed with exactly two decimal places."""
-        result = _make_result(exit_code=0, elapsed_seconds=1.5)
+        result = _make_result(exit_code=1, elapsed_seconds=1.5)
         output = self._capture_print(result)
         self.assertIn("1.50", output)
 
