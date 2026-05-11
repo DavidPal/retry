@@ -30,3 +30,6 @@ dist/
 .coverage
 coverage.xml
 pytest_results/
+
+# Claude code
+.claude/

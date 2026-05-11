@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import re
 import subprocess
 import time
 from concurrent.futures import FIRST_COMPLETED
@@ -169,9 +170,20 @@ class JobResult(BaseModel):
         stderr_file.write_text(self.stderr)
         job_state_file.write_text(json_data)
 
+    def succeeded(self) -> bool:
+        """Determines if the job succeeded.
+
+        Returns:
+            True if the job succeeded, False otherwise.
+        """
+        # Pattern handles ANSI color codes like [92m and [0m between label and state value
+        # Find all occurrences and take the last one (most recent status check)
+        matches: list[str] | None = re.findall(r"State:(?:\s|\x1b\[[0-9;]*m)+(\w+)", self.stdout)
+        return (self.exit_code == 0) and (matches is not None) and (matches[-1] == "success")
+
     def print(self) -> None:
         """Prints the status of the job."""
-        if self.exit_code == 0:
+        if self.succeeded():
             print(f"Job {self.job_index} succeeded after {self.elapsed_seconds:.2f} seconds.")
         else:
             print(f"Job {self.job_index} failed after {self.elapsed_seconds:.2f} seconds.")
@@ -239,7 +251,7 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
                 result = future.result()
                 result.print()
                 result.serialize(base_directory)
-                if result.exit_code == 0:
+                if result.succeeded():
                     job_queue.mark_job_as_succeeded(result.job_index)
                 else:
                     job_queue.mark_job_as_failed(result.job_index)
