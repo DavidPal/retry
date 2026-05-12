@@ -6,6 +6,7 @@ import argparse
 import random
 import re
 import subprocess
+import sys
 import time
 from concurrent.futures import FIRST_COMPLETED
 from concurrent.futures import Future
@@ -188,6 +189,10 @@ class JobResult(BaseModel):
         else:
             print(f"Job {self.job_index} failed after {self.elapsed_seconds:.2f} seconds.")
 
+    def ussh_failed(self) -> bool:
+        """Determines if the job failed due to a USSH error."""
+        return "Please run ussh first." in self.stdout
+
 
 def run_job(job_index: int, num_attempts: int, command: str) -> JobResult:
     """Runs a shell command and captures its output.
@@ -255,6 +260,10 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
                     job_queue.mark_job_as_succeeded(result.job_index)
                 else:
                     job_queue.mark_job_as_failed(result.job_index)
+
+                if result.ussh_failed():
+                    print("Please run ussh first.")
+                    sys.exit(1)
 
             job_queue.write_to_json_file(base_directory / "queue.json")
             job_queue.print_stats()
