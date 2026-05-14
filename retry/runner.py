@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import random
 import re
 import subprocess
@@ -141,6 +142,7 @@ class JobQueue(BaseModel):
         """Prints the stats of the job queue."""
         num_failures = sum(self.num_attempts) - len(self.succeeded_jobs)
         print(
+            f"{datetime.datetime.now().astimezone()} "
             f"{len(self.running_jobs)} running job(s). "
             f"{len(self.queued_jobs)} queued job(s). "
             f"{len(self.succeeded_jobs)} succeeded job(s). "
@@ -185,9 +187,17 @@ class JobResult(BaseModel):
     def print(self) -> None:
         """Prints the status of the job."""
         if self.succeeded():
-            print(f"Job {self.job_index} succeeded after {self.elapsed_seconds:.2f} seconds.")
+            print(
+                f"{datetime.datetime.now().astimezone()} "
+                f"Job {self.job_index} (attempt={self.num_attempts}) "
+                f"succeeded after {self.elapsed_seconds:.2f} seconds.",
+            )
         else:
-            print(f"Job {self.job_index} failed after {self.elapsed_seconds:.2f} seconds.")
+            print(
+                f"{datetime.datetime.now().astimezone()} "
+                f"Job {self.job_index} (attempt={self.num_attempts}) "
+                f"failed after {self.elapsed_seconds:.2f} seconds.",
+            )
 
     def ussh_failed(self) -> bool:
         """Determines if the job failed due to a USSH error."""
@@ -242,7 +252,10 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
             # Add jobs to thread pool.
             while len(pending) < max_workers and not job_queue.is_empty():
                 job_index, num_attempts, command = job_queue.get_random_job()
-                print(f"Starting job {job_index}, attempt {num_attempts}, command: {command}")
+                print(
+                    f"{datetime.datetime.now().astimezone()} "
+                    f"Starting job {job_index}, attempt {num_attempts}, command: {command}",
+                )
                 future = executor.submit(run_job, job_index, num_attempts, command)
                 pending.add(future)
 
@@ -262,7 +275,7 @@ def run_jobs(job_queue: JobQueue, max_workers: int, base_directory: Path) -> Non
                     job_queue.mark_job_as_failed(result.job_index)
 
                 if result.ussh_failed():
-                    print("Please run ussh first.")
+                    print(f"{datetime.datetime.now().astimezone()} Please run ussh first.")
                     sys.exit(1)
 
             job_queue.write_to_json_file(base_directory / "queue.json")
